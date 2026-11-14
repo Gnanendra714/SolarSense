@@ -1,0 +1,39 @@
+# Render Blueprint for SolarSense
+# Connect the GitHub repository to Render and choose "Apply Blueprint".
+services:
+  - type: web
+    name: solarsense-api
+    runtime: python
+    rootDir: backend
+    plan: starter
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.4
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: solarsense-db
+          property: connectionString
+      - key: DEVICE_API_KEY
+        generateValue: true
+      - key: ADMIN_API_KEY
+        generateValue: true
+      - key: CORS_ORIGINS
+        sync: false
+      - key: MAX_PANEL_TEMP_C
+        value: "65"
+      - key: MIN_LIGHT_FOR_OUTPUT_LUX
+        value: "8000"
+      - key: MIN_POWER_RATIO
+        value: "0.20"
+
+databases:
+  - name: solarsense-db
+    plan: basic-256mb
+    databaseName: solarsense
+    user: solarsense

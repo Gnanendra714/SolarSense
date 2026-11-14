@@ -1,0 +1,41 @@
+SOLARSENSE ENERGY INVESTIGATION
+==================================================
+Total records: 595
+Sources: {'simulated': 588, 'legacy': 7}
+
+ENERGY CHANGE SUMMARY
+           count      mean    median       min       max
+source                                                  
+legacy         6  0.097942  0.003793 -0.119135  0.564797
+simulated    587  0.000029  0.000067 -0.436544  0.428308
+
+ENERGY BEHAVIOUR
+Energy increases: 324
+Energy unchanged: 0
+Energy decreases / reset candidates: 269
+
+PREVIOUSLY FLAGGED ENERGY OUTLIERS
+Flagged records: 11
+                       timestamp    source  energy_wh  energy_change_wh  energy_reset_candidate
+2026-11-12 19:04:47.460682+00:00    legacy   0.170571          0.170571                   False
+2026-11-12 19:05:30.774815+00:00    legacy   0.051436         -0.119135                    True
+2026-11-12 19:17:29.953827+00:00    legacy   0.587654          0.564797                   False
+2026-11-12 20:29:08.742574+00:00 simulated   0.057121          0.056612                   False
+2026-11-12 20:35:12.445193+00:00 simulated   0.092183          0.083019                   False
+2026-11-13 02:39:21.988833+00:00 simulated   0.065178          0.049588                   False
+2026-11-13 02:43:21.014320+00:00 simulated   0.145279          0.131200                   False
+2026-11-13 02:45:25.823243+00:00 simulated   0.047355          0.031285                   False
+2026-11-13 05:47:59.931439+00:00 simulated   0.088811          0.079117                   False
+2026-11-13 06:31:20.572493+00:00 simulated   0.438343          0.428308                   False
+2026-11-13 06:59:04.234645+00:00 simulated   0.034187          0.033483                   False
+
+SOURCE-WISE RESET CANDIDATES
+source
+legacy         3
+simulated    266
+Name: energy_reset_candidate, dtype: int64
+
+IMPORTANT
+A decrease is only a possible counter reset, not proof of one.
+Energy behaviour must be interpreted using the backend's accumulation logic.
+No readings have been deleted or modified.

@@ -1,0 +1,4 @@
+# Install on Raspberry Pi only, after enabling I2C and 1-Wire.
+python-dotenv>=1.0,<2.0
+pi-ina219>=3.4.0,<4.0
+smbus2>=0.4.3,<1.0

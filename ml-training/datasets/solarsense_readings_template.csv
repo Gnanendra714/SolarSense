@@ -1,0 +1,2 @@
+timestamp,session_id,device_id,source,voltage_v,current_a,panel_temp_c,light_lux,label
+2026-11-01T10:00:00+05:30,session_001,solar-panel-01,hardware,8.72,0.61,42.5,38500,normal

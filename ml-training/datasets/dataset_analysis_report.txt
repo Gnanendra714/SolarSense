@@ -1,0 +1,38 @@
+SOLARSENSE - DATASET ANALYSIS REPORT
+==================================================
+Rows analysed: 595
+Sources: {'simulated': 588, 'legacy': 7}
+Date range: 2026-11-12 19:00:39.357909+00:00 to 2026-11-13 07:00:24.447795+00:00
+Duplicate reading IDs: 0
+Missing values: {'timestamp': 0, 'reading_id': 0, 'source': 0, 'voltage_v': 0, 'current_a': 0, 'power_w': 0, 'panel_temp_c': 0, 'light_lux': 0, 'energy_wh': 0, 'label': 595, 'calculated_power_w': 0, 'power_error_w': 0, 'absolute_power_error_w': 0, 'sample_interval_s': 2, 'voltage_delta_v': 2, 'current_delta_a': 2, 'power_delta_w': 2, 'temperature_delta_c': 2, 'light_delta_lux': 2, 'voltage_v_potential_outlier': 0, 'current_a_potential_outlier': 0, 'power_w_potential_outlier': 0, 'panel_temp_c_potential_outlier': 0, 'light_lux_potential_outlier': 0, 'energy_wh_potential_outlier': 0}
+
+NUMERICAL SUMMARY
+          voltage_v                              current_a                                 power_w                            panel_temp_c                                      light_lux                                          energy_wh                         
+               mean       std       min      max      mean       std       min       max      mean      std     min       max         mean        std        min        max          mean           std          min           max      mean       std  min       max
+source                                                                                                                                                                                                                                                               
+legacy     8.685714  0.433699  7.800000  9.00000  0.342857  0.171825  0.100000  0.650000  3.012857  1.55534  0.7800  5.850000    41.214286  12.096339  34.500000  68.000000  21428.571429  14033.972387  5000.000000  45000.000000  0.122374  0.213340  0.0  0.587654
+simulated  7.874689  0.701212  7.080585  9.11504  0.284037  0.264685  0.005019  0.732402  2.420809  2.35694  0.0356  6.581252    35.979090   6.197563  29.403573  46.504359  23663.406281  16321.906672  6801.460492  51116.868478  0.008497  0.020719  0.0  0.438343
+
+POWER CONSISTENCY
+Mean absolute difference between recorded and V x I power: 0.000000 W
+Maximum absolute difference: 0.000000 W
+
+SAMPLING INTERVALS
+           count        mean     median        min           max
+source                                                          
+legacy         6  168.432653  39.526321  12.361155    654.464395
+simulated    587   67.139730  10.003616  10.000514  21267.835678
+
+POTENTIAL OUTLIERS (IQR METHOD)
+voltage_v_potential_outlier: 0
+current_a_potential_outlier: 0
+power_w_potential_outlier: 0
+panel_temp_c_potential_outlier: 1
+light_lux_potential_outlier: 0
+energy_wh_potential_outlier: 11
+
+IMPORTANT
+IQR flags indicate statistical extremes, not confirmed equipment faults.
+Simulated and legacy readings are kept separate.
+No fault labels have been invented.
+BH1750 measurements are lux, not irradiance in W/m2.

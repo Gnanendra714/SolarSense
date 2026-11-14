@@ -52,6 +52,9 @@ import {
   loadDeviceSystem,
   loadMlHealth,
   loadLatestPrediction,
+  startCloudDemo,
+  stopCloudDemo,
+  loadCloudDemoDashboard,
   type DeviceSystem,
   type MlHealth,
   type MlPrediction,
@@ -138,17 +141,42 @@ export default function App() {
   const [mlHealth, setMlHealth] = useState<MlHealth | null>(null);
   const [mlPrediction, setMlPrediction] = useState<MlPrediction | null>(null);
   const [mlPredictionError, setMlPredictionError] = useState("");
+  const [demoSessionId, setDemoSessionId] = useState<string | null>(() =>
+    window.localStorage.getItem("solarsense_demo_session"),
+  );
+  const [demoBusy, setDemoBusy] = useState(false);
   async function refresh() {
     try {
-      const d = await loadDashboard();
+      let d: Dashboard;
+      if (demoSessionId) {
+        try {
+          d = await loadCloudDemoDashboard(demoSessionId);
+        } catch (demoError) {
+          const message = demoError instanceof Error ? demoError.message : "";
+          if (message.includes("HTTP 404") || message.includes("HTTP 410")) {
+            window.localStorage.removeItem("solarsense_demo_session");
+            setDemoSessionId(null);
+            d = await loadDashboard();
+          } else {
+            throw demoError;
+          }
+        }
+      } else {
+        d = await loadDashboard();
+      }
       setData(d);
       setError("");
       setUpdated(new Date());
       const [systemResult, modelResult] = await Promise.allSettled([
-        loadDeviceSystem(), loadMlHealth(),
+        loadDeviceSystem(),
+        loadMlHealth(),
       ]);
-      setDeviceSystem(systemResult.status === "fulfilled" ? systemResult.value : null);
-      setMlHealth(modelResult.status === "fulfilled" ? modelResult.value : null);
+      setDeviceSystem(
+        systemResult.status === "fulfilled" ? systemResult.value : null,
+      );
+      setMlHealth(
+        modelResult.status === "fulfilled" ? modelResult.value : null,
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not reach API");
     } finally {
@@ -156,10 +184,10 @@ export default function App() {
     }
   }
   useEffect(() => {
-    refresh();
-    const t = setInterval(refresh, 10000);
+    void refresh();
+    const t = setInterval(() => void refresh(), 10000);
     return () => clearInterval(t);
-  }, []);
+  }, [demoSessionId]);
   useEffect(() => {
     if (page !== "Performance") return;
 
@@ -221,6 +249,37 @@ export default function App() {
       cancelled = true;
     };
   }, [page, range]);
+  async function handleStartDemo() {
+    setDemoBusy(true);
+    setError("");
+    try {
+      const session = await startCloudDemo();
+      window.localStorage.setItem(
+        "solarsense_demo_session",
+        session.session_id,
+      );
+      setDemoSessionId(session.session_id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not start cloud demo");
+    } finally {
+      setDemoBusy(false);
+    }
+  }
+
+  async function handleStopDemo() {
+    if (!demoSessionId) return;
+    setDemoBusy(true);
+    try {
+      await stopCloudDemo(demoSessionId);
+      window.localStorage.removeItem("solarsense_demo_session");
+      setDemoSessionId(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not stop cloud demo");
+    } finally {
+      setDemoBusy(false);
+    }
+  }
+
   const summary = data?.summary,
     latest = summary?.latest;
   const chartData = useMemo(
@@ -396,13 +455,37 @@ export default function App() {
               </span>
             </div>
           )}
-          {demo && data && (
+          {data && (
             <div className="demo-banner">
               <Info size={17} />
               <span>
-                <b>DEMO / FALLBACK DATA</b> — Values shown are generated
-                examples, not measurements from your solar panel.
+                <b>
+                  {demoSessionId
+                    ? "CLOUD DEMO RUNNING"
+                    : summary?.data_source === "hardware" &&
+                        summary.device_online
+                      ? "HARDWARE DATA ACTIVE"
+                      : "SIMULATED / FALLBACK DATA"}
+                </b>
+                {" — "}
+                {demoSessionId
+                  ? "Cloud-generated readings are updating every 10 seconds. These are not physical sensor measurements."
+                  : summary?.data_source === "hardware" && summary.device_online
+                    ? "Physical sensor readings are active. You can start an isolated cloud demo without changing the hardware stream."
+                    : "Start the cloud demo to generate a separate stream of simulated readings."}
               </span>
+              <button
+                className="demo-control-button"
+                type="button"
+                onClick={demoSessionId ? handleStopDemo : handleStartDemo}
+                disabled={demoBusy}
+              >
+                {demoBusy
+                  ? "PLEASE WAIT…"
+                  : demoSessionId
+                    ? "STOP DEMO"
+                    : "START DEMO"}
+              </button>
             </div>
           )}
           {loading && !data ? (
@@ -452,14 +535,28 @@ export default function App() {
                   predictionError={mlPredictionError}
                   onRunPrediction={async () => {
                     setMlPredictionError("");
-                    try { setMlPrediction(await loadLatestPrediction()); }
-                    catch (e) { setMlPrediction(null); setMlPredictionError(e instanceof Error ? e.message : "Prediction unavailable"); }
+                    try {
+                      setMlPrediction(await loadLatestPrediction());
+                    } catch (e) {
+                      setMlPrediction(null);
+                      setMlPredictionError(
+                        e instanceof Error
+                          ? e.message
+                          : "Prediction unavailable",
+                      );
+                    }
                   }}
                 />
               )}
               {page === "Alerts" && <AlertsPage alerts={activeAlerts} />}
               {page === "System" && (
-                <SystemPage data={data} error={error} demo={!!demo} system={deviceSystem} model={mlHealth} />
+                <SystemPage
+                  data={data}
+                  error={error}
+                  demo={!!demo}
+                  system={deviceSystem}
+                  model={mlHealth}
+                />
               )}
             </>
           )}
@@ -1116,10 +1213,18 @@ function PanelHealth({ data, demo }: { data: Dashboard; demo: boolean }) {
   );
 }
 function MLInsights({
-  data, demo, model, prediction, predictionError, onRunPrediction,
+  data,
+  demo,
+  model,
+  prediction,
+  predictionError,
+  onRunPrediction,
 }: {
-  data: Dashboard; demo: boolean; model: MlHealth | null;
-  prediction: MlPrediction | null; predictionError: string;
+  data: Dashboard;
+  demo: boolean;
+  model: MlHealth | null;
+  prediction: MlPrediction | null;
+  predictionError: string;
   onRunPrediction: () => void;
 }) {
   return (
@@ -1128,39 +1233,77 @@ function MLInsights({
         <Lightbulb size={22} />
         <div>
           <b>{model?.ready ? "ML model loaded" : "ML model not deployed"}</b>
-          <span>{model?.ready ? `Model version ${model.model_version}. Run inference on the latest stored reading.` : (model?.message || "No validated model artifact is installed. Predictions remain unavailable.")}</span>
+          <span>
+            {model?.ready
+              ? `Model version ${model.model_version}. Run inference on the latest stored reading.`
+              : model?.message ||
+                "No validated model artifact is installed. Predictions remain unavailable."}
+          </span>
         </div>
       </div>
       <div className="two-column">
         <Panel title="Model readiness" subtitle="Backend inference service">
           <div className="ml-status">
-            <span className={`large-status ${model?.ready ? "available" : "pending"}`}>{model?.ready ? "READY" : "NOT DEPLOYED"}</span>
+            <span
+              className={`large-status ${model?.ready ? "available" : "pending"}`}
+            >
+              {model?.ready ? "READY" : "NOT DEPLOYED"}
+            </span>
             <p>{model?.model_version || "No model version"}</p>
           </div>
         </Panel>
-        <Panel title="Latest fault classification" subtitle="Prediction from the latest stored reading">
+        <Panel
+          title="Latest fault classification"
+          subtitle="Prediction from the latest stored reading"
+        >
           {prediction ? (
             <div className="ml-status">
               <b>{prediction.predicted_class.replace(/_/g, " ")}</b>
               <p>Confidence: {fmt(prediction.confidence * 100, 1)}%</p>
-              <small>Model {prediction.model_version} · {prediction.reading_source} data</small>
+              <small>
+                Model {prediction.model_version} · {prediction.reading_source}{" "}
+                data
+              </small>
             </div>
           ) : (
-            <div className="ml-status"><span className="large-status pending">NO PREDICTION</span><p>{predictionError || "No inference has been run in this session."}</p></div>
+            <div className="ml-status">
+              <span className="large-status pending">NO PREDICTION</span>
+              <p>
+                {predictionError ||
+                  "No inference has been run in this session."}
+              </p>
+            </div>
           )}
-          <button className="outline-button" type="button" disabled={!model?.ready || demo} onClick={onRunPrediction}>Run latest prediction</button>
+          <button
+            className="outline-button"
+            type="button"
+            disabled={!model?.ready || demo}
+            onClick={onRunPrediction}
+          >
+            Run latest prediction
+          </button>
         </Panel>
       </div>
       {prediction && (
-        <Panel title="Class probabilities" subtitle="Model-reported probabilities; not a guarantee of fault diagnosis">
-          {Object.entries(prediction.probabilities).map(([label, probability]) => (
-            <div className="system-row" key={label}><b>{label.replace(/_/g, " ")}</b><span>{fmt(probability * 100, 1)}%</span></div>
-          ))}
+        <Panel
+          title="Class probabilities"
+          subtitle="Model-reported probabilities; not a guarantee of fault diagnosis"
+        >
+          {Object.entries(prediction.probabilities).map(
+            ([label, probability]) => (
+              <div className="system-row" key={label}>
+                <b>{label.replace(/_/g, " ")}</b>
+                <span>{fmt(probability * 100, 1)}%</span>
+              </div>
+            ),
+          )}
           <p className="small-muted">{prediction.warning}</p>
         </Panel>
       )}
       <EmptyNotice>
-        {demo ? "Latest readings are not confirmed as physical hardware data. Prediction is disabled for simulated or legacy readings." : "ML predictions are advisory. Fault classification must be validated on independent, labelled physical test sessions before operational use."}
+        {demo
+          ? "Latest readings are not confirmed as physical hardware data. Prediction is disabled for simulated or legacy readings."
+          : "ML predictions are advisory. Fault classification must be validated on independent, labelled physical test sessions before operational use."}
       </EmptyNotice>
     </>
   );
@@ -1191,20 +1334,47 @@ function AlertsPage({ alerts }: { alerts: any[] }) {
   );
 }
 function SystemPage({
-  data, error, demo, system, model,
+  data,
+  error,
+  demo,
+  system,
+  model,
 }: {
-  data: Dashboard; error: string; demo: boolean;
-  system: DeviceSystem | null; model: MlHealth | null;
+  data: Dashboard;
+  error: string;
+  demo: boolean;
+  system: DeviceSystem | null;
+  model: MlHealth | null;
 }) {
   const rows = [
     ["FastAPI backend", error ? "Disconnected" : "Responding", !error],
     ["Dashboard API", "Data received", true],
     ["Database", error ? "Unavailable" : "API database check passed", !error],
-    ["Device agent", system?.online ? `Online · ${system.status}` : "Offline / no heartbeat", !!system?.online],
-    ["INA219", system?.sensors?.INA219 ? "Healthy" : "Unhealthy / unknown", !!system?.sensors?.INA219],
-    ["DS18B20", system?.sensors?.DS18B20 ? "Healthy" : "Unhealthy / unknown", !!system?.sensors?.DS18B20],
-    ["BH1750", system?.sensors?.BH1750 ? "Healthy" : "Unhealthy / unknown", !!system?.sensors?.BH1750],
-    ["ML inference", model?.ready ? `Ready · ${model.model_version}` : "Model unavailable", !!model?.ready],
+    [
+      "Device agent",
+      system?.online ? `Online · ${system.status}` : "Offline / no heartbeat",
+      !!system?.online,
+    ],
+    [
+      "INA219",
+      system?.sensors?.INA219 ? "Healthy" : "Unhealthy / unknown",
+      !!system?.sensors?.INA219,
+    ],
+    [
+      "DS18B20",
+      system?.sensors?.DS18B20 ? "Healthy" : "Unhealthy / unknown",
+      !!system?.sensors?.DS18B20,
+    ],
+    [
+      "BH1750",
+      system?.sensors?.BH1750 ? "Healthy" : "Unhealthy / unknown",
+      !!system?.sensors?.BH1750,
+    ],
+    [
+      "ML inference",
+      model?.ready ? `Ready · ${model.model_version}` : "Model unavailable",
+      !!model?.ready,
+    ],
   ];
   return (
     <>
@@ -1225,15 +1395,39 @@ function SystemPage({
         ))}
       </div>
       <div className="two-column">
-        <Panel title="Device heartbeat" subtitle="Latest Raspberry Pi agent status">
+        <Panel
+          title="Device heartbeat"
+          subtitle="Latest Raspberry Pi agent status"
+        >
           <div className="health-facts">
-            <div><span>Device ID</span><b>{system?.device_id || "Not registered"}</b></div>
-            <div><span>Agent version</span><b>{system?.agent_version || "Unknown"}</b></div>
-            <div><span>Data source</span><b>{system?.source || data.summary.data_source}</b></div>
-            <div><span>Last heartbeat</span><b>{system?.last_seen ? new Date(system.last_seen).toLocaleString() : "Never received"}</b></div>
+            <div>
+              <span>Device ID</span>
+              <b>{system?.device_id || "Not registered"}</b>
+            </div>
+            <div>
+              <span>Agent version</span>
+              <b>{system?.agent_version || "Unknown"}</b>
+            </div>
+            <div>
+              <span>Data source</span>
+              <b>{system?.source || data.summary.data_source}</b>
+            </div>
+            <div>
+              <span>Last heartbeat</span>
+              <b>
+                {system?.last_seen
+                  ? new Date(system.last_seen).toLocaleString()
+                  : "Never received"}
+              </b>
+            </div>
           </div>
           {system && Object.keys(system.sensor_errors || {}).length > 0 && (
-            <div className="notice">Sensor errors: {Object.entries(system.sensor_errors).map(([sensor, message]) => `${sensor}: ${message}`).join(" · ")}</div>
+            <div className="notice">
+              Sensor errors:{" "}
+              {Object.entries(system.sensor_errors)
+                .map(([sensor, message]) => `${sensor}: ${message}`)
+                .join(" · ")}
+            </div>
           )}
         </Panel>
         <Panel title="Backend information" subtitle="API connection">

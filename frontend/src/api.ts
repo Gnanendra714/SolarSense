@@ -77,11 +77,22 @@ export type DeviceSystem = {
   sensors: Record<string, boolean>;
 };
 
-export type MlHealth = { ready: boolean; model_version: string; message: string };
+export type MlHealth = {
+  ready: boolean;
+  model_version: string;
+  message: string;
+};
 export type MlPrediction = {
-  device_id: string; reading_timestamp: string; reading_source: string;
-  predicted_class: string; confidence: number; probabilities: Record<string, number>;
-  prediction_timestamp: string; model_version: string; source: string; warning: string;
+  device_id: string;
+  reading_timestamp: string;
+  reading_source: string;
+  predicted_class: string;
+  confidence: number;
+  probabilities: Record<string, number>;
+  prediction_timestamp: string;
+  model_version: string;
+  source: string;
+  warning: string;
 };
 
 export type ReadingsResponse = {
@@ -180,3 +191,49 @@ export function loadReadings(
   return apiRequest<ReadingsResponse>(`/readings?${params.toString()}`);
 }
 
+export type DemoStartResponse = {
+  session_id: string;
+  status: "running";
+  started_at: string;
+  expires_at: string;
+  refresh_interval_seconds: number;
+  message: string;
+};
+
+async function demoPost<T>(path: string): Promise<T> {
+  const response = await fetch(`${base}${path}`, {
+    method: "POST",
+    signal: AbortSignal.timeout(10000),
+  });
+
+  if (!response.ok) {
+    let detail = `Backend returned HTTP ${response.status}`;
+
+    try {
+      const body = await response.json();
+      if (body.detail) detail = String(body.detail);
+    } catch {
+      // Keep the HTTP status message.
+    }
+
+    throw new Error(detail);
+  }
+
+  return response.json();
+}
+
+export function startCloudDemo(): Promise<DemoStartResponse> {
+  return demoPost<DemoStartResponse>("/demo/start");
+}
+
+export function stopCloudDemo(
+  sessionId: string,
+): Promise<{ session_id: string; status: string }> {
+  return demoPost(`/demo/stop?session_id=${encodeURIComponent(sessionId)}`);
+}
+
+export function loadCloudDemoDashboard(sessionId: string): Promise<Dashboard> {
+  return apiRequest(
+    `/demo/dashboard?session_id=${encodeURIComponent(sessionId)}`,
+  );
+}

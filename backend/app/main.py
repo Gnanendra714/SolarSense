@@ -11,6 +11,8 @@ from app.database.session import Base, engine
 from app.api.routes import router
 from app.models import tables  # noqa: F401
 from app.machine_learning.inference.api import router as ml_router
+from app.api.demo_routes import router as demo_router
+from app.models import demo as demo_tables  # noqa: F401
 
 
 def validate_production_settings() -> None:
@@ -68,6 +70,7 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(demo_router)
 app.include_router(ml_router)
 
 
